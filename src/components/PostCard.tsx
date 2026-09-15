@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Share2, ExternalLink, Sparkles } from 'lucide-react';
+import { MessageSquare, Share2, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post } from '../types';
 
@@ -7,15 +7,19 @@ interface PostCardProps {
   post: Post;
   onTurtlePower: (postId: string) => void;
   onOpenComments: (post: Post) => void;
+  onSelectUser?: (userId: string) => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
   post,
   onTurtlePower,
   onOpenComments,
+  onSelectUser,
 }) => {
   const [isPowered, setIsPowered] = useState(post.has_user_powered || false);
   const [powerCount, setPowerCount] = useState(post.turtle_powers_count || 0);
+  const [avatarError, setAvatarError] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handlePowerClick = () => {
     onTurtlePower(post.id);
@@ -36,9 +40,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           text: post.content.slice(0, 100) + '...',
           url: window.location.href,
         });
-      } catch (e) {
-        // User cancelled share
-      }
+      } catch (e) { }
     } else {
       navigator.clipboard.writeText(window.location.href);
       alert('Post link copied to clipboard!');
@@ -49,29 +51,41 @@ export const PostCard: React.FC<PostCardProps> = ({
     ? formatDistanceToNow(new Date(post.created_at), { addSuffix: true })
     : 'recently';
 
+  const authorUserId = post.profiles?.user_id || post.user_id;
+
   return (
     <article className="glass-card rounded-2xl p-4 transition-all duration-200 hover:border-slate-700/60 shadow-lg shadow-black/20">
-      {/* Author Header */}
+      {/* Clickable Author Header */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 rounded-full bg-slate-800 border border-emerald-500/40 overflow-hidden flex items-center justify-center font-bold text-emerald-300 text-sm shrink-0">
-          {post.profiles?.avatar_url ? (
+        <button
+          onClick={() => onSelectUser && authorUserId && onSelectUser(authorUserId)}
+          className="w-10 h-10 rounded-full bg-slate-800 border border-emerald-500/40 overflow-hidden flex items-center justify-center font-bold text-emerald-300 text-sm shrink-0 cursor-pointer hover:border-emerald-400 transition-colors"
+        >
+          {post.profiles?.avatar_url && !avatarError ? (
             <img
               src={post.profiles.avatar_url}
               alt={post.profiles.display_name || 'User'}
+              onError={() => setAvatarError(true)}
               className="w-full h-full object-cover"
             />
           ) : (
             <span>{post.profiles?.display_name?.[0]?.toUpperCase() || '🐢'}</span>
           )}
-        </div>
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-bold text-white text-sm truncate">
+            <button
+              onClick={() => onSelectUser && authorUserId && onSelectUser(authorUserId)}
+              className="font-bold text-white text-sm truncate hover:text-emerald-300 transition-colors text-left"
+            >
               {post.profiles?.display_name || 'Positive Turtle'}
-            </span>
-            <span className="text-xs text-emerald-400 font-medium">
+            </button>
+            <button
+              onClick={() => onSelectUser && authorUserId && onSelectUser(authorUserId)}
+              className="text-xs text-emerald-400 font-medium hover:underline"
+            >
               @{post.profiles?.turtle_handle || 'turtle'}
-            </span>
+            </button>
           </div>
           <p className="text-[11px] text-slate-400 font-medium">{timeAgo}</p>
         </div>
@@ -82,12 +96,13 @@ export const PostCard: React.FC<PostCardProps> = ({
         {post.content}
       </p>
 
-      {/* Attached Image */}
-      {post.image_url && (
+      {/* Attached Image with Error Fallback */}
+      {post.image_url && !imageError && (
         <div className="mb-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-900/50 max-h-96">
           <img
             src={post.image_url}
             alt="Post media"
+            onError={() => setImageError(true)}
             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
             loading="lazy"
           />
@@ -118,6 +133,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <img
               src={post.shared_article_image}
               alt=""
+              onError={(e) => (e.currentTarget.style.display = 'none')}
               className="w-16 h-16 rounded-lg object-cover shrink-0"
             />
           )}
@@ -135,20 +151,17 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Action Footer Bar */}
       <div className="flex items-center justify-between border-t border-slate-800/60 pt-3 mt-1 text-slate-400">
-        {/* Turtle Power Upvote Button */}
         <button
           onClick={handlePowerClick}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-            isPowered
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${isPowered
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
               : 'hover:bg-slate-800 text-slate-400 hover:text-emerald-300'
-          }`}
+            }`}
         >
           <span className="text-base transform active:scale-125 transition-transform">🐢</span>
           <span>{powerCount} Turtle Power</span>
         </button>
 
-        {/* Comment Button */}
         <button
           onClick={() => onOpenComments(post)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
@@ -157,7 +170,6 @@ export const PostCard: React.FC<PostCardProps> = ({
           <span>{post.comments_count || 0} Comments</span>
         </button>
 
-        {/* Share Button */}
         <button
           onClick={handleShare}
           className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
