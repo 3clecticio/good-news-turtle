@@ -14,6 +14,7 @@ import { supabase } from './lib/supabase';
 export function App() {
   const [activeTab, setActiveTab] = useState('feed');
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [activeCommentsPost, setActiveCommentsPost] = useState<Post | null>(null);
@@ -30,7 +31,6 @@ export function App() {
       if (data && !error) {
         setUserProfile(data);
       } else {
-        // Fallback default profile if new auth user
         setUserProfile({
           id: userId,
           user_id: userId,
@@ -46,7 +46,6 @@ export function App() {
   };
 
   useEffect(() => {
-    // Check active auth session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -67,39 +66,38 @@ export function App() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUserProfile(null);
+    setSelectedUserId(null);
+  };
+
+  const handleSelectUser = (userId: string) => {
+    setSelectedUserId(userId);
+    setActiveTab('profile');
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 max-w-md mx-auto relative border-x border-slate-800/40 shadow-2xl">
-      {/* Top Header */}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col max-w-md mx-auto relative border-x border-slate-800/40 shadow-2xl">
       <Header
         userProfile={userProfile}
         onOpenAuth={() => setShowAuthModal(true)}
-        onOpenProfile={() => setActiveTab('profile')}
+        onOpenProfile={() => {
+          setSelectedUserId(null);
+          setActiveTab('profile');
+        }}
       />
 
-      {/* Main Tab Views */}
       <main className="flex-1 overflow-y-auto">
         {activeTab === 'feed' && (
           <Feed
             key={feedKey}
             userProfile={userProfile}
             onOpenComments={(post) => setActiveCommentsPost(post)}
-            onOpenCreateModal={() => {
-              if (userProfile) {
-                setShowCreateModal(true);
-              } else {
-                setShowAuthModal(true);
-              }
-            }}
+            onOpenCreateModal={() => (userProfile ? setShowCreateModal(true) : setShowAuthModal(true))}
+            onSelectUser={handleSelectUser}
           />
         )}
 
         {activeTab === 'dreams' && (
-          <DreamsView
-            userProfile={userProfile}
-            onOpenAuth={() => setShowAuthModal(true)}
-          />
+          <DreamsView userProfile={userProfile} onOpenAuth={() => setShowAuthModal(true)} />
         )}
 
         {activeTab === 'videos' && <VideoUniverseView />}
@@ -107,26 +105,25 @@ export function App() {
         {activeTab === 'profile' && (
           <ProfileView
             userProfile={userProfile}
+            targetUserId={selectedUserId}
             onOpenAuth={() => setShowAuthModal(true)}
             onSignOut={handleSignOut}
+            onBack={selectedUserId ? () => setSelectedUserId(null) : undefined}
+            onSelectUser={handleSelectUser}
+            onOpenComments={(p) => setActiveCommentsPost(p)}
           />
         )}
       </main>
 
-      {/* Bottom Mobile Navigation Bar */}
       <BottomNav
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
-        onOpenCreateModal={() => {
-          if (userProfile) {
-            setShowCreateModal(true);
-          } else {
-            setShowAuthModal(true);
-          }
+        onTabChange={(tab) => {
+          if (tab === 'profile') setSelectedUserId(null);
+          setActiveTab(tab);
         }}
+        onOpenCreateModal={() => (userProfile ? setShowCreateModal(true) : setShowAuthModal(true))}
       />
 
-      {/* Post Creator Modal */}
       {showCreateModal && (
         <CreatePostModal
           userProfile={userProfile}
@@ -139,7 +136,6 @@ export function App() {
         />
       )}
 
-      {/* Post Comments Modal */}
       {activeCommentsPost && (
         <CommentsModal
           post={activeCommentsPost}
@@ -149,10 +145,10 @@ export function App() {
             setActiveCommentsPost(null);
             setShowAuthModal(true);
           }}
+          onSelectUser={handleSelectUser}
         />
       )}
 
-      {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
           onClose={() => setShowAuthModal(false)}
